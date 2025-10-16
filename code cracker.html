@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Richard Shieldkey - Matrix Password Checker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            overflow-x: hidden;
+        }
+        
+        #matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 0;
+        }
+        
+        .matrix-column {
+            position: absolute;
+            top: -100%;
+            font-size: 20px;
+            color: #0f0;
+            text-shadow: 0 0 5px #0f0;
+            white-space: pre;
+            line-height: 1.2;
+            animation: fall linear infinite;
+        }
+        
+        @keyframes fall {
+            to {
+                top: 100%;
+            }
+        }
+        
+        #root {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .glow-green {
+            text-shadow: 0 0 10px #0f0, 0 0 20px #0f0, 0 0 30px #0f0;
+        }
+        
+        .glow-green-text {
+            color: #0f0;
+            text-shadow: 0 0 5px #0f0;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .animate-pulse-custom {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="matrix-bg"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Matrix Rain Background Component
+        const MatrixRain = () => {
+            useEffect(() => {
+                const container = document.getElementById('matrix-bg');
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+                const columns = Math.floor(window.innerWidth / 20);
+                const columnElements = [];
+
+                for (let i = 0; i < columns; i++) {
+                    const column = document.createElement('div');
+                    column.className = 'matrix-column';
+                    column.style.left = `${i * 20}px`;
+                    column.style.animationDuration = `${Math.random() * 3 + 2}s`;
+                    column.style.animationDelay = `${Math.random() * 2}s`;
+                    
+                    let text = '';
+                    for (let j = 0; j < 50; j++) {
+                        text += chars[Math.floor(Math.random() * chars.length)] + '\n';
+                    }
+                    column.textContent = text;
+                    
+                    container.appendChild(column);
+                    columnElements.push(column);
+                }
+
+                const interval = setInterval(() => {
+                    columnElements.forEach(column => {
+                        let text = '';
+                        for (let j = 0; j < 50; j++) {
+                            text += chars[Math.floor(Math.random() * chars.length)] + '\n';
+                        }
+                        column.textContent = text;
+                        column.style.opacity = Math.random() * 0.5 + 0.5;
+                    });
+                }, 100);
+
+                return () => {
+                    clearInterval(interval);
+                    columnElements.forEach(col => col.remove());
+                };
+            }, []);
+
+            return null;
+        };
+
+        const PasswordChecker = () => {
+            const [password, setPassword] = useState('');
+            const [showPassword, setShowPassword] = useState(false);
+            const [strength, setStrength] = useState(null);
+            const [checks, setChecks] = useState({});
+            const [showBot, setShowBot] = useState(false);
+            const [botMessage, setBotMessage] = useState('');
+            const [detailLevel, setDetailLevel] = useState('short');
+            const [botEmotion, setBotEmotion] = useState('neutral');
+
+            const analyzePassword = (pwd) => {
+                const checks = {
+                    length: pwd.length >= 8,
+                    uppercase: /[A-Z]/.test(pwd),
+                    lowercase: /[a-z]/.test(pwd),
+                    number: /[0-9]/.test(pwd),
+                    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd),
+                    longLength: pwd.length >= 12,
+                    noCommon: !/(password|123456|qwerty|admin|letmein)/i.test(pwd)
+                };
+
+                const score = Object.values(checks).filter(Boolean).length;
+                
+                let strengthLevel;
+                if (score <= 2) strengthLevel = 'weak';
+                else if (score <= 4) strengthLevel = 'fair';
+                else if (score <= 5) strengthLevel = 'good';
+                else strengthLevel = 'strong';
+
+                return { checks, strengthLevel, score };
+            };
+
+            useEffect(() => {
+                if (password) {
+                    const result = analyzePassword(password);
+                    setChecks(result.checks);
+                    setStrength(result.strengthLevel);
+                } else {
+                    setChecks({});
+                    setStrength(null);
+                }
+            }, [password]);
+
+            const getStrengthColor = () => {
+                if (!strength) return '#1a1a1a';
+                const colors = {
+                    weak: '#ff0000',
+                    fair: '#ff6600',
+                    good: '#ffff00',
+                    strong: '#00ff00'
+                };
+                return colors[strength];
+            };
+
+            const getStrengthWidth = () => {
+                if (!strength) return '0%';
+                const widths = {
+                    weak: '25%',
+                    fair: '50%',
+                    good: '75%',
+                    strong: '100%'
+                };
+                return widths[strength];
+            };
+
+            const generateBotResponse = (level) => {
+                const issues = [];
+                if (!checks.length) issues.push('at least 8 characters');
+                if (!checks.uppercase) issues.push('an uppercase letter (A-Z)');
+                if (!checks.lowercase) issues.push('a lowercase letter (a-z)');
+                if (!checks.number) issues.push('a number (0-9)');
+                if (!checks.special) issues.push('a special character (!@#$%^&*)');
+                if (!checks.longLength) issues.push('12+ characters for extra security');
+                if (!checks.noCommon) issues.push('avoid common passwords');
+
+                if (level === 'short') {
+                    if (issues.length === 0) {
+                        setBotEmotion('happy');
+                        return "🎉 Excellent! Your password is strong and secure!";
+                    }
+                    setBotEmotion('concerned');
+                    return `⚠️ Add: ${issues.slice(0, 2).join(', ')}${issues.length > 2 ? '...' : ''}`;
+                } else {
+                    if (issues.length === 0) {
+                        setBotEmotion('happy');
+                        return `🎉 Fantastic work! Your password meets all security requirements:\n\n✅ 8+ characters\n✅ Uppercase letters\n✅ Lowercase letters\n✅ Numbers\n✅ Special characters\n✅ Not a common password\n\nYour password is ${password.length >= 12 ? 'exceptionally' : 'very'} secure. ${password.length >= 12 ? "Great job using 12+ characters!" : "Consider using 12+ characters for even better security."}`;
+                    }
+                    setBotEmotion('teaching');
+                    return `📚 Let me help you strengthen your password:\n\n${issues.map((issue, i) => `${i + 1}. Add ${issue}`).join('\n')}\n\n💡 Tip: A strong password combines different character types and avoids predictable patterns. Aim for at least 12 characters for optimal security!`;
+                }
+            };
+
+            const handleAskBot = (level) => {
+                setDetailLevel(level);
+                const response = generateBotResponse(level);
+                setBotMessage(response);
+                setShowBot(true);
+            };
+
+            const getBotFace = () => {
+                const faces = {
+                    neutral: '😊',
+                    happy: '🤗',
+                    concerned: '😟',
+                    teaching: '🤓'
+                };
+                return faces[botEmotion];
+            };
+
+            return (
+                <>
+                    <MatrixRain />
+                    <div style={{ minHeight: '100vh', padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ maxWidth: '48rem', width: '100%' }}>
+                            <div style={{ 
+                                background: 'rgba(0, 20, 0, 0.95)', 
+                                borderRadius: '1.5rem', 
+                                boxShadow: '0 0 30px rgba(0, 255, 0, 0.3), 0 0 60px rgba(0, 255, 0, 0.1)',
+                                padding: '2rem',
+                                border: '2px solid rgba(0, 255, 0, 0.3)'
+                            }}>
+                                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                                    <div style={{ 
+                                        display: 'inline-flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center', 
+                                        width: '4rem', 
+                                        height: '4rem', 
+                                        background: 'rgba(0, 255, 0, 0.2)', 
+                                        borderRadius: '50%', 
+                                        marginBottom: '1rem',
+                                        border: '2px solid #0f0'
+                                    }} className="animate-pulse-custom">
+                                        <span style={{ fontSize: '2rem' }}>🛡️</span>
+                                    </div>
+                                    <h1 className="glow-green" style={{ 
+                                        fontSize: '2.5rem', 
+                                        fontWeight: 'bold', 
+                                        color: '#0f0',
+                                        marginBottom: '0.5rem',
+                                        fontFamily: 'Courier New, monospace'
+                                    }}>
+                                        RICHARD SHIELDKEY
+                                    </h1>
+                                    <p style={{ color: '#0f0', opacity: 0.8 }}>[ SECURE PASSWORD ANALYZER v2.0 ]</p>
+                                </div>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            placeholder="Enter password to analyze..."
+                                            style={{ 
+                                                width: '100%', 
+                                                padding: '1rem', 
+                                                paddingRight: '3rem',
+                                                fontSize: '1.125rem', 
+                                                border: '2px solid #0f0', 
+                                                borderRadius: '0.75rem',
+                                                outline: 'none',
+                                                background: 'rgba(0, 0, 0, 0.8)',
+                                                color: '#0f0',
+                                                boxShadow: '0 0 10px rgba(0, 255, 0, 0.2)',
+                                                fontFamily: 'Courier New, monospace'
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            style={{ 
+                                                position: 'absolute', 
+                                                right: '1rem', 
+                                                top: '50%', 
+                                                transform: 'translateY(-50%)',
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#0f0',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {showPassword ? '👁️' : '🔒'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {password && (
+                                    <div style={{ marginBottom: '1.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                            <span className="glow-green-text" style={{ fontSize: '0.875rem', fontWeight: '600' }}>PASSWORD STRENGTH:</span>
+                                            <span className="glow-green-text" style={{ 
+                                                fontSize: '0.875rem', 
+                                                fontWeight: 'bold',
+                                                textTransform: 'uppercase'
+                                            }}>
+                                                {strength}
+                                            </span>
+                                        </div>
+                                        <div style={{ 
+                                            width: '100%', 
+                                            height: '0.75rem', 
+                                            background: 'rgba(0, 0, 0, 0.5)', 
+                                            borderRadius: '9999px',
+                                            overflow: 'hidden',
+                                            border: '1px solid rgba(0, 255, 0, 0.3)'
+                                        }}>
+                                            <div
+                                                style={{ 
+                                                    height: '100%', 
+                                                    background: getStrengthColor(),
+                                                    transition: 'all 0.5s ease-out',
+                                                    width: getStrengthWidth(),
+                                                    boxShadow: `0 0 10px ${getStrengthColor()}`
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {password && (
+                                    <div style={{ 
+                                        background: 'rgba(0, 255, 0, 0.05)', 
+                                        borderRadius: '0.75rem', 
+                                        padding: '1.5rem', 
+                                        marginBottom: '1.5rem',
+                                        border: '1px solid rgba(0, 255, 0, 0.2)'
+                                    }}>
+                                        <h3 className="glow-green-text" style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '1rem' }}>SECURITY REQUIREMENTS:</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            {[
+                                                { key: 'length', text: 'At least 8 characters' },
+                                                { key: 'uppercase', text: 'Contains uppercase letter (A-Z)' },
+                                                { key: 'lowercase', text: 'Contains lowercase letter (a-z)' },
+                                                { key: 'number', text: 'Contains number (0-9)' },
+                                                { key: 'special', text: 'Contains special character (!@#$%...)' },
+                                                { key: 'longLength', text: 'At least 12 characters (recommended)' },
+                                                { key: 'noCommon', text: 'Not a common password' }
+                                            ].map((req) => (
+                                                <div key={req.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{ fontSize: '1.25rem' }}>
+                                                        {checks[req.key] ? '✅' : '❌'}
+                                                    </span>
+                                                    <span className="glow-green-text" style={{ 
+                                                        opacity: checks[req.key] ? 1 : 0.6,
+                                                        fontWeight: checks[req.key] ? '500' : '400'
+                                                    }}>
+                                                        {req.text}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                                    <button
+                                        onClick={() => handleAskBot('short')}
+                                        style={{ 
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.75rem 1.5rem',
+                                            background: 'rgba(0, 255, 0, 0.2)',
+                                            color: '#0f0',
+                                            border: '2px solid #0f0',
+                                            borderRadius: '0.75rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            fontFamily: 'Courier New, monospace',
+                                            boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
+                                        }}
+                                    >
+                                        ⚡ Quick Help
+                                    </button>
+                                    <button
+                                        onClick={() => handleAskBot('detailed')}
+                                        style={{ 
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            padding: '0.75rem 1.5rem',
+                                            background: 'rgba(0, 255, 0, 0.2)',
+                                            color: '#0f0',
+                                            border: '2px solid #0f0',
+                                            borderRadius: '0.75rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            fontFamily: 'Courier New, monospace',
+                                            boxShadow: '0 0 10px rgba(0, 255, 0, 0.3)'
+                                        }}
+                                    >
+                                        💬 Detailed Help
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {showBot && (
+                            <div style={{ 
+                                position: 'fixed', 
+                                inset: 0, 
+                                background: 'rgba(0, 0, 0, 0.9)', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                zIndex: 50,
+                                padding: '1rem'
+                            }}>
+                                <div style={{ 
+                                    background: 'rgba(0, 20, 0, 0.98)', 
+                                    borderRadius: '1.5rem', 
+                                    maxWidth: '32rem', 
+                                    width: '100%', 
+                                    padding: '2rem',
+                                    border: '2px solid rgba(0, 255, 0, 0.5)',
+                                    boxShadow: '0 0 30px rgba(0, 255, 0, 0.3)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                            <div style={{ 
+                                                width: '3rem', 
+                                                height: '3rem', 
+                                                background: 'rgba(0, 255, 0, 0.2)', 
+                                                borderRadius: '50%', 
+                                                display: 'flex', 
+                                                alignItems: 'center', 
+                                                justifyContent: 'center',
+                                                fontSize: '1.5rem',
+                                                border: '2px solid #0f0'
+                                            }} className="animate-pulse-custom">
+                                                {getBotFace()}
+                                            </div>
+                                            <div>
+                                                <h3 className="glow-green-text" style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>Password Assistant</h3>
+                                                <span style={{ fontSize: '0.875rem', color: '#0f0', opacity: 0.7 }}>
+                                                    {detailLevel === 'short' ? 'Quick Tips' : 'Detailed Guide'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowBot(false)}
+                                            style={{ 
+                                                background: 'none',
+                                                border: 'none',
+                                                color: '#0f0',
+                                                cursor: 'pointer',
+                                                fontSize: '1.5rem'
+                                            }}
+                                        >
+                                            ✖
+                                        </button>
+                                    </div>
+                                    <div style={{ 
+                                        background: 'rgba(0, 255, 0, 0.05)', 
+                                        borderRadius: '0.75rem', 
+                                        padding: '1.5rem',
+                                        border: '1px solid rgba(0, 255, 0, 0.2)'
+                                    }}>
+                                        <p className="glow-green-text" style={{ whiteSpace: 'pre-line', lineHeight: '1.6' }}>{botMessage}</p>
+                                    </div>
+                                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+                                        <button
+                                            onClick={() => handleAskBot('short')}
+                                            style={{ 
+                                                flex: 1,
+                                                padding: '0.5rem 1rem',
+                                                borderRadius: '0.5rem',
+                                                fontWeight: '500',
+                                                border: '2px solid #0f0',
+                                                cursor: 'pointer',
+                                                background: detailLevel === 'short' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(0, 255, 0, 0.1)',
+                                                color: '#0f0',
+                                                fontFamily: 'Courier New, monospace'
+                                            }}
+                                        >
+                                            Short
+                                        </button>
+                                        <button
+                                            onClick={() => handleAskBot('detailed')}
+                                            style={{ 
+                                                flex: 1,
+                                                padding: '0.5rem 1rem',
+                                                borderRadius: '0.5rem',
+                                                fontWeight: '500',
+                                                border: '2px solid #0f0',
+                                                cursor: 'pointer',
+                                                background: detailLevel === 'detailed' ? 'rgba(0, 255, 0, 0.3)' : 'rgba(0, 255, 0, 0.1)',
+                                                color: '#0f0',
+                                                fontFamily: 'Courier New, monospace'
+                                            }}
+                                        >
+                                            Detailed
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            );
+        };
+
+        ReactDOM.render(<PasswordChecker />, document.getElementById('root'));
+    </script>
+</body>
+</html>
